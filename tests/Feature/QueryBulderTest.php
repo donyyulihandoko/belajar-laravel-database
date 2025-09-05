@@ -201,7 +201,7 @@ class QueryBulderTest extends TestCase
                 'id' => 'product1',
                 'name' => 'Macbook Pro M1 2020',
                 'price' => 25_000_000,
-                'id_category' => 'P0007'
+                'id_category' => 'P0001'
             ]
         );
         DB::table('products')->insert(
@@ -285,10 +285,11 @@ class QueryBulderTest extends TestCase
     }
     public function testQueryBuilderChunk()
     {
-        $this->insertManyCategories();
+        // $this->insertManyCategories();
+        $this->testQueryBuilderInsert();
         DB::table('categories')
             ->orderBy('id')
-            ->chunk(10, function ($categories) {
+            ->chunk(1, function ($categories) {
                 self::assertNotNull($categories);
                 foreach ($categories as $category) {
                     Log::info(json_encode($category));
@@ -298,14 +299,193 @@ class QueryBulderTest extends TestCase
 
     public function testQueryBuilderLazy()
     {
-        $this->insertManyCategories();
+        // $this->insertManyCategories();
+        $this->testQueryBuilderInsert();
+
         $collection =  DB::table('categories')
             ->orderBy('id')
-            ->lazy(10)
+            ->lazy(1)
             ->each(function ($item) {
                 Log::info(json_encode($item));
             });
 
         self::assertNotNull($collection);
+    }
+
+    public function testQueryBuilderAgregate()
+    {
+        $this->insertProducts();
+        $result = DB::table('products')
+            ->min('price');
+        self::assertEquals(10_000_000, $result);
+    }
+
+    public function testRawQueryBuilder()
+    {
+        $this->insertProducts();
+        $collection  =  DB::table('products')
+            ->select(
+                DB::raw('count(id) as total_product'),
+                DB::raw('min(price) as min_price'),
+                DB::raw('max(price) as max_price')
+            )->get();
+
+        self::assertEquals(4, $collection[0]->total_product);
+        self::assertEquals(10_000_000, $collection[0]->min_price);
+        self::assertEquals(25_000_000, $collection[0]->max_price);
+    }
+
+    public function insertProducts2()
+    {
+        DB::table('products')->insert(
+            [
+                'id' => 'product5',
+                'name' => 'Laptop1',
+                'price' => 15_000_000,
+                'id_category' => 'P0001'
+            ]
+        );
+        DB::table('products')->insert(
+            [
+                'id' => 'product6',
+                'name' => 'Laptop2',
+                'price' => 15_500_000,
+                'id_category' => 'P0001'
+            ]
+        );
+        DB::table('products')->insert(
+            [
+                'id' => 'product7',
+                'name' => 'Smartphone1',
+                'price' => 12_000_000,
+                'id_category' => 'P0002'
+            ]
+        );
+        DB::table('products')->insert(
+            [
+                'id' => 'product8',
+                'name' => 'Smartphone2',
+                'price' => 12_000_000,
+                'id_category' => 'P0002'
+            ]
+        );
+    }
+
+    public function testQueryBuilderGrouping()
+    {
+        $this->insertProducts();
+        $this->insertProducts2();
+
+        $collection = DB::table('products')
+            ->select(
+                'id_category',
+                DB::raw('count(*) as total_product')
+            )
+            ->groupBy('id_category')
+            ->orderBy('id_category', 'desc')
+            ->get();
+
+        self::assertCount(2, $collection);
+        self::assertEquals('P0002', $collection[0]->id_category);
+        self::assertEquals('P0001', $collection[1]->id_category);
+        self::assertEquals(4, $collection[0]->total_product);
+        self::assertEquals(4, $collection[1]->total_product);
+    }
+
+    public function testQueryBuilderHaving()
+    {
+        $this->insertProducts();
+        $this->insertProducts2();
+
+        $collection = DB::table('products')
+            ->select(
+                'id_category',
+                DB::raw('count(*) as total_product')
+            )
+            ->groupBy('id_category')
+            ->having(DB::raw('count(*)'), '>', 5)
+            ->orderBy('id_category', 'desc')
+            ->get();
+
+        self::assertCount(0, $collection);
+        // self::assertEquals('P0002', $collection[0]->id_category);
+        // self::assertEquals('P0001', $collection[1]->id_category);
+        // self::assertEquals(4, $collection[0]->total_product);
+        // self::assertEquals(4, $collection[1]->total_product);
+    }
+
+    public function testQueryBuilderLocking()
+    {
+        $this->insertProducts();
+        DB::transaction(function () {
+            $collection = DB::table('products')
+                ->where('id', 'product1')
+                ->lockForUpdate()
+                ->get();
+            self::assertCount(1, $collection);
+        });
+    }
+
+    public function testPagination()
+    {
+        $this->testQueryBuilderInsert();
+
+        $paginate = DB::table("categories")->paginate(perPage: 2, page: 2);
+
+        self::assertEquals(2, $paginate->currentPage());
+        self::assertEquals(2, $paginate->perPage());
+        self::assertEquals(4, $paginate->lastPage());
+        self::assertEquals(8, $paginate->total());
+
+        $collection = $paginate->items();
+        self::assertCount(2, $collection);
+        foreach ($collection as $item) {
+            Log::info(json_encode($item));
+        }
+    }
+
+    public function testIterateAllPagination()
+    {
+        $this->testQueryBuilderInsert();
+
+
+        $page = 1;
+
+        while (true) {
+            $paginate = DB::table("categories")->paginate(perPage: 2, page: $page);
+
+            if ($paginate->isEmpty()) {
+                break;
+            } else {
+                $page++;
+
+                $collection = $paginate->items();
+                self::assertCount(2, $collection);
+                foreach ($collection as $item) {
+                    Log::info(json_encode($item));
+                }
+            }
+        }
+    }
+
+    public function testCursorPagination()
+    {
+        $this->testQueryBuilderInsert();
+
+
+        $cursor = "id";
+        while (true) {
+            $paginate = DB::table("categories")->orderBy("id")->cursorPaginate(perPage: 2, cursor: $cursor);
+
+            foreach ($paginate->items() as $item) {
+                self::assertNotNull($item);
+                Log::info(json_encode($item));
+            }
+
+            $cursor = $paginate->nextCursor();
+            if ($cursor == null) {
+                break;
+            }
+        }
     }
 }
