@@ -9,6 +9,7 @@ use Illuminate\Foundation\Testing\WithFaker;
 use Tests\TestCase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Database\Seeders\CategorySeeder;
 
 class QueryBulderTest extends TestCase
 {
@@ -22,46 +23,7 @@ class QueryBulderTest extends TestCase
 
     public function testQueryBuilderInsert()
     {
-        DB::table('categories')->insert([
-            'id' => 'P0001',
-            'name' => 'Laptop',
-            'description' => 'Laptop Deskription'
-        ]);
-        DB::table('categories')->insert([
-            'id' => 'P0002',
-            'name' => 'Smartphone',
-            'description' => 'Smartphone Deskription'
-        ]);
-        DB::table('categories')->insert([
-            'id' => 'P0003',
-            'name' => 'SmartTV',
-            'description' => 'Smartphone Deskription'
-        ]);
-        DB::table('categories')->insert([
-            'id' => 'P0004',
-            'name' => 'Smartwatch',
-            'description' => 'Smartphone Deskription'
-        ]);
-        DB::table('categories')->insert([
-            'id' => 'P0005',
-            'name' => 'Ipad',
-            // 'description' => 'Smartphone Deskription'
-        ]);
-        DB::table('categories')->insert([
-            'id' => 'P0006',
-            'name' => 'Iwatch',
-            // 'description' => 'Smartphone Deskription'
-        ]);
-        DB::table('categories')->insert([
-            'id' => 'P0007',
-            'name' => 'Macbook',
-            // 'description' => 'Smartphone Deskription'
-        ]);
-        DB::table('categories')->insert([
-            'id' => 'P0008',
-            'name' => 'Lain lain',
-            // 'description' => 'Smartphone Deskription'
-        ]);
+        $this->seed(CategorySeeder::class);
 
         $result = DB::select('SELECT count(id) AS total FROM categories',);
         self::assertEquals(8, $result[0]->total);
